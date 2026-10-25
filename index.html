@@ -40,6 +40,9 @@
 <div class="card">
   <h2>2. Modelo (se descarga una vez, después queda offline)</h2>
   <select id="model"></select>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:14px;color:var(--mut)">
+    <input type="checkbox" id="idb" checked style="width:auto;margin:0"> Guardar en IndexedDB (más estable en Android)
+  </label>
   <button id="load">Descargar y cargar modelo</button>
   <progress id="prog" max="1" value="0" hidden></progress>
   <div id="log"></div>
@@ -126,13 +129,15 @@ $("load").onclick = async () => {
     log("Cargando librería WebLLM…");
     webllm ??= await import("https://esm.run/@mlc-ai/web-llm");
     const t0 = performance.now();
+    const useIDB = $("idb").checked;
     engine = await webllm.CreateMLCEngine($("model").value, {
       initProgressCallback: (p) => { $("prog").value = p.progress; log(p.text); },
+      appConfig: { ...webllm.prebuiltAppConfig, useIndexedDBCache: useIDB },
     });
     log(`Modelo listo en ${((performance.now() - t0) / 1000).toFixed(1)} s. La próxima vez carga desde caché, sin internet.`);
     ["inp", "send", "bench"].forEach((id) => ($(id).disabled = false));
   } catch (e) {
-    log("Error: " + (e?.message || e));
+    log("Error: " + (e?.message || e) + "\n\nTocá el botón de nuevo: las partes ya descargadas quedan guardadas y sigue desde donde cortó.");
     $("load").disabled = false;
   }
 };
