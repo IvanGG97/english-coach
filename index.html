@@ -2,473 +2,235 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Test IA Local</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>English Coach</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
-  :root { --bg:#0f1115; --card:#1a1d24; --tx:#e8eaed; --mut:#9aa0a6; --ok:#4ade80; --err:#f87171; --warn:#fbbf24; --acc:#60a5fa; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--tx); font:15px/1.5 system-ui, sans-serif; padding:16px; }
-  h1 { font-size:20px; margin:0 0 12px; }
-  .card { background:var(--card); border-radius:12px; padding:14px; margin-bottom:12px; }
-  .card h2 { font-size:15px; margin:0 0 8px; }
-  .row { display:flex; justify-content:space-between; gap:8px; padding:3px 0; font-size:14px; }
-  .row span:first-child { color:var(--mut); }
+  :root {
+    --bg:#0f1115; --card:#1a1d24; --card2:#232733; --tx:#e8eaed; --mut:#9aa0a6;
+    --acc:#60a5fa; --acc2:#a78bfa; --ok:#4ade80; --err:#f87171; --warn:#fbbf24;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; background:var(--bg); color:var(--tx); font:16px/1.5 system-ui, -apple-system, sans-serif; }
+  body { padding:16px 16px calc(16px + env(safe-area-inset-bottom)); max-width:560px; margin:0 auto; }
+  h1 { font-size:22px; margin:0; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .screen { display:none; }
+  .screen.on { display:block; }
+  .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:8px; }
+  .icon-btn { background:var(--card); border:none; color:var(--tx); width:42px; height:42px; border-radius:12px; font-size:20px; }
+  .card { background:var(--card); border-radius:16px; padding:16px; margin-bottom:12px; }
+  .muted { color:var(--mut); font-size:14px; }
+  .small { font-size:13px; }
+  .row { display:flex; gap:10px; align-items:center; }
+  .grow { flex:1; }
+  label { display:block; font-size:14px; color:var(--mut); margin:12px 0 4px; }
+  input, select, textarea {
+    width:100%; font:inherit; color:var(--tx); background:var(--card2); border:1px solid #333a48;
+    border-radius:10px; padding:11px 12px;
+  }
+  button.btn {
+    width:100%; font:inherit; font-weight:600; border:none; border-radius:12px; padding:14px;
+    background:var(--acc); color:#0b1220; margin-top:10px;
+  }
+  button.btn.alt { background:var(--card2); color:var(--tx); }
+  button.btn.danger { background:var(--err); color:#1a0b0b; }
+  button:disabled { opacity:.45; }
   .ok { color:var(--ok); } .err { color:var(--err); } .warn { color:var(--warn); }
-  button, select, input { font:inherit; border-radius:8px; border:1px solid #333; background:#252933; color:var(--tx); padding:10px 12px; }
-  button { background:var(--acc); color:#0b1220; border:none; font-weight:600; width:100%; margin-top:8px; }
-  button:disabled { opacity:.4; }
-  select, input { width:100%; margin-top:6px; }
-  progress { width:100%; height:10px; margin-top:8px; }
-  #log { font-size:13px; color:var(--mut); white-space:pre-wrap; word-break:break-word; }
-  #chat { max-height:320px; overflow-y:auto; margin-top:8px; }
-  .msg { padding:8px 10px; border-radius:10px; margin:6px 0; white-space:pre-wrap; }
-  .u { background:#1e3a5f; margin-left:24px; } .a { background:#252933; margin-right:24px; }
+
+  /* Home */
+  .streak { display:flex; align-items:center; gap:14px; }
+  .flame { font-size:42px; line-height:1; }
+  .big { font-size:30px; font-weight:700; line-height:1.1; }
+  .bar { height:8px; background:var(--card2); border-radius:8px; overflow:hidden; margin-top:10px; }
+  .bar > div { height:100%; background:linear-gradient(90deg, var(--acc), var(--acc2)); width:0; transition:width .4s; }
+  .week { display:flex; justify-content:space-between; margin-top:12px; }
+  .day { text-align:center; font-size:12px; color:var(--mut); width:36px; }
+  .dot { width:28px; height:28px; border-radius:50%; background:var(--card2); margin:4px auto 0; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .dot.done { background:var(--acc); color:#0b1220; }
+  .dot.today { outline:2px solid var(--acc2); }
+  .modes { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .mode { background:var(--card2); border:2px solid transparent; border-radius:14px; padding:14px 12px; text-align:left; color:var(--tx); font:inherit; }
+  .mode b { display:block; font-size:15px; margin-top:6px; }
+  .mode span { font-size:13px; color:var(--mut); }
+  .mode .emo { font-size:26px; }
+  .hist-item { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid #2a2f3a; gap:10px; }
+  .hist-item:first-of-type { border-top:none; }
+  .pill { font-size:12px; padding:2px 8px; border-radius:20px; background:var(--card2); color:var(--mut); white-space:nowrap; }
+
+  /* Session */
+  .orb-wrap { display:flex; flex-direction:column; align-items:center; padding:18px 0 8px; }
+  .orb {
+    width:140px; height:140px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #93c5fd, var(--acc) 45%, #3b3f9e 100%);
+    box-shadow:0 0 40px rgba(96,165,250,.35); transition:transform .08s linear, box-shadow .3s;
+  }
+  .orb.speaking { background:radial-gradient(circle at 35% 30%, #ddd6fe, var(--acc2) 45%, #4c1d95 100%); box-shadow:0 0 50px rgba(167,139,250,.5); }
+  .orb.idle { filter:grayscale(.7) brightness(.7); }
+  #status { margin-top:14px; font-weight:600; }
+  #timer { color:var(--mut); font-size:14px; }
+  #transcript { max-height:38vh; overflow-y:auto; margin-top:8px; }
+  .line { padding:8px 12px; border-radius:12px; margin:6px 0; white-space:pre-wrap; font-size:15px; }
+  .line.user { background:#1e3a5f; margin-left:28px; }
+  .line.ai { background:var(--card2); margin-right:28px; }
+  .line.sys { background:transparent; color:var(--warn); font-size:13px; text-align:center; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #talk { font-size:18px; padding:18px; }
+  #talk.rec { background:var(--err); color:#1a0b0b; }
+
+  /* Review */
+  .corr { background:var(--card2); border-radius:12px; padding:12px; margin-top:10px; }
+  .corr .diff { font-size:15px; }
+  .corr .why { color:var(--mut); font-size:14px; margin-top:6px; }
+  s.del { color:var(--err); }
+  b.add { color:var(--ok); }
+  .vocab { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .vocab div { background:var(--card2); border-radius:10px; padding:8px 10px; font-size:14px; }
+  details summary { cursor:pointer; color:var(--mut); }
+  .spinner { width:28px; height:28px; border:3px solid var(--card2); border-top-color:var(--acc); border-radius:50%; animation:spin 1s linear infinite; margin:16px auto; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
-<h1>🧪 Test de IA local — S21</h1>
 
-<div class="card">
-  <h2>1. Compatibilidad</h2>
-  <div class="row"><span>WebGPU</span><span id="gpu">…</span></div>
-  <div class="row"><span>GPU</span><span id="gpuname">…</span></div>
-  <div class="row"><span>shader-f16</span><span id="f16">…</span></div>
-  <div class="row"><span>Almacenamiento libre</span><span id="storage">…</span></div>
-  <div class="row"><span>Almacenamiento persistente</span><span id="persist">…</span></div>
-</div>
+<!-- ================= HOME ================= -->
+<section id="home" class="screen">
+  <div class="top">
+    <h1>English Coach</h1>
+    <button class="icon-btn" data-go="settings" aria-label="Ajustes">⚙️</button>
+  </div>
 
-<div class="card">
-  <h2>2. Modelo (se descarga una vez, después queda offline)</h2>
-  <select id="model"></select>
-  <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:14px;color:var(--mut)">
-    <input type="checkbox" id="idb" checked style="width:auto;margin:0"> Guardar en IndexedDB (más estable en Android)
-  </label>
-  <button id="load">Descargar y cargar modelo</button>
-  <progress id="prog" max="1" value="0" hidden></progress>
-  <div id="log"></div>
-</div>
+  <div class="card">
+    <div class="streak">
+      <div class="flame">🔥</div>
+      <div class="grow">
+        <div class="big" id="streak">0 días</div>
+        <div class="muted" id="today-min">Hoy: 0 de 10 min</div>
+      </div>
+    </div>
+    <div class="bar"><div id="goal-bar"></div></div>
+    <div class="week" id="week"></div>
+  </div>
 
-<div class="card">
-  <h2>3. Velocidad y mini chat</h2>
-  <div class="row"><span>Tokens/seg (respuesta)</span><span id="tps">—</span></div>
-  <div id="chat"></div>
-  <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:14px;color:var(--mut)">
-    <input type="checkbox" id="twostep" checked style="width:auto;margin:0"> Modo 2 pasos (primero corrige, después responde)
-  </label>
-  <input id="inp" placeholder="Write something in English…" disabled>
-  <button id="send" disabled>Enviar</button>
-  <button id="bench" disabled>Benchmark rápido</button>
-</div>
+  <div class="card">
+    <h2>Practicar</h2>
+    <div class="modes">
+      <button class="mode" data-start="free"><div class="emo">💬</div><b>Conversación</b><span>Charla libre</span></button>
+      <button class="mode" data-start="interview"><div class="emo">💼</div><b>Entrevista</b><span>Técnica, en inglés</span></button>
+    </div>
+    <div class="row" style="margin-top:4px">
+      <div class="grow">
+        <label for="level">Nivel</label>
+        <select id="level">
+          <option value="A2">A2 — Básico</option>
+          <option value="B1">B1 — Intermedio</option>
+          <option value="B2">B2 — Intermedio alto</option>
+          <option value="C1">C1 — Avanzado</option>
+        </select>
+      </div>
+    </div>
+    <label for="topic">Tema (opcional)</label>
+    <input id="topic" placeholder="Ej: mi fin de semana, Docker, mi último proyecto…">
+    <div class="muted small" id="mode-hint" style="margin-top:10px"></div>
+  </div>
 
-<div class="card">
-  <h2>3b. Corrector dedicado</h2>
-  <div style="font-size:13px;color:var(--mut)">5 frases: 3 con errores y 2 correctas (para ver si inventa errores).</div>
-  <button id="ctest" disabled>Probar corrector (5 frases)</button>
-  <div class="row"><span>Aciertos</span><span id="cscore">—</span></div>
-  <div id="cres"></div>
-</div>
+  <div class="card">
+    <h2>Últimas sesiones</h2>
+    <div id="history"><div class="muted">Todavía no hay sesiones.</div></div>
+  </div>
+</section>
 
-<div class="card">
-  <h2>4. Voz del sistema (TTS offline)</h2>
-  <select id="voices"></select>
-  <button id="speak">Probar voz</button>
-  <div class="row"><span>Voces en inglés</span><span id="nvoices">…</span></div>
-</div>
+<!-- ================= SETTINGS ================= -->
+<section id="settings" class="screen">
+  <div class="top">
+    <h1>Ajustes</h1>
+    <button class="icon-btn" data-go="home" aria-label="Volver">✕</button>
+  </div>
+  <div class="card">
+    <h2>API key de Gemini</h2>
+    <div class="muted small">Se guarda solo en este celular. Creala gratis en <b>aistudio.google.com/apikey</b>.</div>
+    <label for="apikey">API key</label>
+    <input id="apikey" type="password" autocomplete="off" placeholder="AIza…">
+    <button class="btn" id="verify">Guardar y detectar modelos</button>
+    <div class="small" id="verify-msg" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>Modelos</h2>
+    <label for="live-model">Voz en tiempo real (Live)</label>
+    <select id="live-model"></select>
+    <label for="lite-model">Texto (modo turnos y análisis)</label>
+    <select id="lite-model"></select>
+    <label for="voice">Voz de la IA (solo Live)</label>
+    <select id="voice">
+      <option value="">Predeterminada</option>
+      <option>Kore</option><option>Puck</option><option>Aoede</option>
+      <option>Charon</option><option>Fenrir</option><option>Leda</option>
+    </select>
+    <label for="mode">Modo de conversación</label>
+    <select id="mode">
+      <option value="auto">Automático (Live; si falla, turnos)</option>
+      <option value="live">Solo Live</option>
+      <option value="turns">Solo turnos</option>
+    </select>
+  </div>
+  <div class="card">
+    <h2>Perfil</h2>
+    <label for="name">Tu nombre</label>
+    <input id="name">
+    <label for="role">Puesto para las entrevistas</label>
+    <textarea id="role" rows="2"></textarea>
+    <label for="goal">Meta diaria (minutos)</label>
+    <input id="goal" type="number" min="1" max="120">
+    <button class="btn" id="save-settings">Guardar</button>
+  </div>
+</section>
 
-<div class="card">
-  <h2>5. Micrófono</h2>
-  <button id="mic">Pedir permiso de micrófono</button>
-  <div class="row"><span>Estado</span><span id="micstate">—</span></div>
-</div>
+<!-- ================= SESSION ================= -->
+<section id="session" class="screen">
+  <div class="top">
+    <div>
+      <h1 id="s-title">Conversación</h1>
+      <div id="timer">00:00 · <span id="s-mode">conectando…</span></div>
+    </div>
+  </div>
+  <div class="orb-wrap">
+    <div class="orb idle" id="orb"></div>
+    <div id="status">Conectando…</div>
+  </div>
+  <div class="card" style="padding:10px 12px">
+    <div id="transcript"></div>
+  </div>
+  <div id="live-controls" class="controls" hidden>
+    <button class="btn alt" id="mute">🎙️ Silenciar</button>
+    <button class="btn danger" id="end-live">Terminar</button>
+  </div>
+  <div id="turn-controls" hidden>
+    <button class="btn" id="talk">🎙️ Tocá para hablar</button>
+    <div class="row" style="margin-top:10px">
+      <input id="type-input" class="grow" placeholder="…o escribí en inglés">
+      <button class="icon-btn" id="type-send" style="flex:none">➤</button>
+    </div>
+    <button class="btn danger" id="end-turns">Terminar</button>
+  </div>
+  <div id="fallback-box" hidden>
+    <button class="btn" id="to-turns">Seguir en modo turnos</button>
+    <button class="btn alt" id="end-fallback">Terminar y analizar</button>
+  </div>
+</section>
 
-<div class="card">
-  <h2>6. Voz a texto offline (Whisper)</h2>
-  <select id="wmodel">
-    <option value="onnx-community/whisper-base.en">Whisper base.en (~80 MB) — recomendado</option>
-    <option value="onnx-community/whisper-tiny.en">Whisper tiny.en (~40 MB) — más rápido, menos preciso</option>
-  </select>
-  <select id="wdevice">
-    <option value="webgpu-fp16">GPU fp16 (más rápido)</option>
-    <option value="webgpu">GPU fp32 (más preciso)</option>
-    <option value="wasm">CPU (WASM)</option>
-  </select>
-  <button id="wload">Descargar y cargar Whisper</button>
-  <progress id="wprog" max="100" value="0" hidden></progress>
-  <div id="wlog" style="font-size:13px;color:var(--mut);white-space:pre-wrap"></div>
-  <div style="margin-top:10px;font-size:14px">Leé en voz alta, a ritmo normal:</div>
-  <div class="msg a" id="wref">I have been working as a web developer for three years, mainly with Python and React.</div>
-  <button id="wrec" disabled>🎙️ Grabar</button>
-  <div class="row"><span>Duración del audio</span><span id="wdur">—</span></div>
-  <div class="row"><span>Tiempo de transcripción</span><span id="wtime">—</span></div>
-  <div class="row"><span>Precisión vs. frase</span><span id="wacc">—</span></div>
-  <div class="msg u" id="wtext" hidden></div>
-</div>
+<!-- ================= REVIEW ================= -->
+<section id="review" class="screen">
+  <div class="top">
+    <h1>Resumen</h1>
+    <button class="icon-btn" data-go="home" aria-label="Volver">✕</button>
+  </div>
+  <div id="review-body"></div>
+</section>
 
-<script type="module">
-const $ = (id) => document.getElementById(id);
-const log = (t) => { $("log").textContent = t; };
-const set = (id, txt, cls) => { $(id).textContent = txt; $(id).className = cls || ""; };
-
-const SYSTEM = "You are a friendly English conversation partner. Keep replies short (1-3 sentences) and end with a simple question to keep the conversation going. Do not correct the user's grammar.";
-
-const CORRECTOR = [
-  { role: "system", content: "You are an English grammar corrector. Rewrite the user's sentence with correct grammar. Keep the same meaning and the same words whenever possible. Output ONLY the corrected sentence, nothing else. If the sentence is already correct, output it unchanged." },
-  { role: "user", content: "She don't like coffee." },
-  { role: "assistant", content: "She doesn't like coffee." },
-  { role: "user", content: "I have been working here for two years." },
-  { role: "assistant", content: "I have been working here for two years." },
-  { role: "user", content: "Last week we deploy the app and it work fine." },
-  { role: "assistant", content: "Last week we deployed the app and it worked fine." },
-];
-
-const TESTS = [
-  { s: "Yesterday I go to the office and my boss say me that the meeting are cancelled.", bad: true },
-  { s: "I am working as a developer since 2022.", bad: true },
-  { s: "Can you explain me how this function works?", bad: true },
-  { s: "I usually drink coffee before I start working.", bad: false },
-  { s: "We fixed the bug last night.", bad: false },
-];
-
-let webllm, engine, history = [{ role: "system", content: SYSTEM }];
-let hasF16 = false;
-
-// ---------- 1. Compatibilidad ----------
-async function checkCompat() {
-  if (!("gpu" in navigator)) {
-    set("gpu", "No disponible ✗", "err");
-    log("Este navegador no tiene WebGPU. Usá Chrome actualizado (no Samsung Internet) y que la página esté en HTTPS.");
-    $("load").disabled = true;
-    return;
-  }
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error("sin adaptador");
-    set("gpu", "Disponible ✓", "ok");
-    hasF16 = adapter.features.has("shader-f16");
-    set("f16", hasF16 ? "Sí ✓" : "No (usaré modelos f32)", hasF16 ? "ok" : "warn");
-    try {
-      const info = adapter.info || (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : {});
-      set("gpuname", [info.vendor, info.architecture, info.description].filter(Boolean).join(" · ") || "sin datos");
-    } catch { set("gpuname", "sin datos"); }
-  } catch (e) {
-    set("gpu", "Falló: " + e.message, "err");
-    $("load").disabled = true;
-  }
-
-  if (navigator.storage?.estimate) {
-    const { quota = 0, usage = 0 } = await navigator.storage.estimate();
-    set("storage", ((quota - usage) / 1e9).toFixed(1) + " GB");
-  }
-  if (navigator.storage?.persist) {
-    const p = await navigator.storage.persist();
-    set("persist", p ? "Sí ✓" : "No (el navegador podría borrar el modelo)", p ? "ok" : "warn");
-  }
-
-  const q = hasF16 ? "q4f16_1" : "q4f32_1";
-  const models = [
-    [`Qwen2.5-1.5B-Instruct-${q}-MLC`, "Qwen 2.5 1.5B (~1 GB) — recomendado"],
-    [`Llama-3.2-1B-Instruct-${q}-MLC`, "Llama 3.2 1B (~0.9 GB)"],
-    [`Qwen2.5-0.5B-Instruct-${q}-MLC`, "Qwen 2.5 0.5B (~0.4 GB) — más rápido, más tonto"],
-  ];
-  $("model").innerHTML = models.map(([id, n]) => `<option value="${id}">${n}</option>`).join("");
-}
-
-// ---------- 2. Cargar modelo ----------
-$("load").onclick = async () => {
-  $("load").disabled = true;
-  $("prog").hidden = false;
-  try {
-    log("Cargando librería WebLLM…");
-    webllm ??= await import("https://esm.run/@mlc-ai/web-llm");
-    const t0 = performance.now();
-    const useIDB = $("idb").checked;
-    engine = await webllm.CreateMLCEngine($("model").value, {
-      initProgressCallback: (p) => { $("prog").value = p.progress; log(p.text); },
-      appConfig: { ...webllm.prebuiltAppConfig, useIndexedDBCache: useIDB },
-    });
-    log(`Modelo listo en ${((performance.now() - t0) / 1000).toFixed(1)} s. La próxima vez carga desde caché, sin internet.`);
-    ["inp", "send", "bench", "ctest"].forEach((id) => ($(id).disabled = false));
-  } catch (e) {
-    log("Error: " + (e?.message || e) + "\n\nTocá el botón de nuevo: las partes ya descargadas quedan guardadas y sigue desde donde cortó.");
-    $("load").disabled = false;
-  }
-};
-
-// ---------- 3. Chat ----------
-function addMsg(cls, text) {
-  const d = document.createElement("div");
-  d.className = "msg " + cls;
-  d.textContent = text;
-  $("chat").appendChild(d);
-  $("chat").scrollTop = 1e9;
-  return d;
-}
-
-async function ask(text, show = true) {
-  history.push({ role: "user", content: text });
-  if (show) addMsg("u", text);
-  const bubble = addMsg("a", "…");
-  let out = "", tokens = 0, tFirst = 0;
-  const stream = await engine.chat.completions.create({ messages: history, stream: true, temperature: 0.7, max_tokens: 200 });
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content || "";
-    if (delta) {
-      if (!tFirst) tFirst = performance.now();
-      tokens++;
-      out += delta;
-      bubble.textContent = out;
-    }
-  }
-  const secs = (performance.now() - tFirst) / 1000;
-  const tps = tokens > 1 ? (tokens - 1) / secs : 0;
-  set("tps", tps.toFixed(1), tps >= 8 ? "ok" : tps >= 4 ? "warn" : "err");
-  history.push({ role: "assistant", content: out });
-  return out;
-}
-
-// ---------- Corrector ----------
-const norm = (s) => s.toLowerCase().replace(/[^a-z0-9' ]/g, " ").replace(/\s+/g, " ").trim();
-
-function cleanOutput(raw) {
-  let s = (raw || "").trim().split("\n").find((l) => l.trim()) || "";
-  s = s.replace(/^(corrected( sentence)?|correction|output)\s*:\s*/i, "").trim();
-  s = s.replace(/^["“'`]+|["”'`]+$/g, "").trim();
-  return s;
-}
-
-async function correct(sentence) {
-  const t0 = performance.now();
-  const r = await engine.chat.completions.create({
-    messages: [...CORRECTOR, { role: "user", content: sentence }],
-    temperature: 0,
-    max_tokens: 80,
-  });
-  const fixed = cleanOutput(r.choices[0]?.message?.content) || sentence;
-  return { fixed, changed: norm(fixed) !== norm(sentence), secs: (performance.now() - t0) / 1000 };
-}
-
-// Diff por palabras (LCS): tachado = sacar, verde = agregar
-function diffHTML(a, b) {
-  const esc = (w) => w.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  const A = a.split(/\s+/), B = b.split(/\s+/);
-  const key = (w) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
-  const dp = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
-  for (let i = A.length - 1; i >= 0; i--)
-    for (let j = B.length - 1; j >= 0; j--)
-      dp[i][j] = key(A[i]) === key(B[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  const out = [];
-  let i = 0, j = 0;
-  while (i < A.length && j < B.length) {
-    if (key(A[i]) === key(B[j])) { out.push(esc(B[j])); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push(`<s class="err">${esc(A[i++])}</s>`);
-    else out.push(`<b class="ok">${esc(B[j++])}</b>`);
-  }
-  while (i < A.length) out.push(`<s class="err">${esc(A[i++])}</s>`);
-  while (j < B.length) out.push(`<b class="ok">${esc(B[j++])}</b>`);
-  return out.join(" ");
-}
-
-function addCorrection(original, fixed) {
-  const d = document.createElement("div");
-  d.className = "msg a";
-  d.style.borderLeft = "3px solid var(--warn)";
-  d.innerHTML = "✏️ " + diffHTML(original, fixed);
-  $("chat").appendChild(d);
-  $("chat").scrollTop = 1e9;
-}
-
-async function turn(text) {
-  if ($("twostep").checked) {
-    addMsg("u", text);
-    const c = await correct(text);
-    if (c.changed) addCorrection(text, c.fixed);
-    await ask(text, false);
-  } else {
-    await ask(text);
-  }
-}
-
-$("send").onclick = async () => {
-  const t = $("inp").value.trim();
-  if (!t) return;
-  $("inp").value = "";
-  $("send").disabled = true;
-  try { await turn(t); } catch (e) { addMsg("a", "Error: " + e.message); }
-  $("send").disabled = false;
-};
-$("inp").addEventListener("keydown", (e) => { if (e.key === "Enter") $("send").click(); });
-
-$("bench").onclick = async () => {
-  $("bench").disabled = true;
-  history = [{ role: "system", content: SYSTEM }];
-  $("chat").innerHTML = "";
-  const t0 = performance.now();
-  try {
-    await turn(TESTS[0].s);
-    const total = ((performance.now() - t0) / 1000).toFixed(1);
-    try { log((await engine.runtimeStatsText()) + `\nTiempo total del turno: ${total} s`); } catch {}
-  } catch (e) { addMsg("a", "Error: " + e.message); }
-  $("bench").disabled = false;
-};
-
-$("ctest").onclick = async () => {
-  $("ctest").disabled = true;
-  $("cres").innerHTML = "";
-  let hits = 0, secs = 0;
-  for (const [n, t] of TESTS.entries()) {
-    const row = document.createElement("div");
-    row.className = "msg a";
-    row.textContent = `${n + 1}. Corrigiendo…`;
-    $("cres").appendChild(row);
-    try {
-      const c = await correct(t.s);
-      secs += c.secs;
-      const ok = c.changed === t.bad;
-      if (ok) hits++;
-      const verdict = t.bad
-        ? (c.changed ? "✓ detectó el error" : "✗ no vio el error")
-        : (c.changed ? "✗ inventó un error" : "✓ la dejó igual");
-      row.innerHTML = `<div class="${ok ? "ok" : "err"}" style="font-size:13px">${n + 1}. ${verdict} · ${c.secs.toFixed(1)} s</div>` +
-        (c.changed ? diffHTML(t.s, c.fixed) : t.s.replace(/[&<>]/g, ""));
-    } catch (e) {
-      row.textContent = `${n + 1}. Error: ${e.message}`;
-    }
-  }
-  set("cscore", `${hits}/5 · promedio ${(secs / TESTS.length).toFixed(1)} s`, hits >= 4 ? "ok" : hits >= 3 ? "warn" : "err");
-  $("ctest").disabled = false;
-};
-
-// ---------- 4. TTS ----------
-function loadVoices() {
-  const vs = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en"));
-  set("nvoices", vs.length ? `${vs.length} (${vs.filter((v) => v.localService).length} locales)` : "0 — instalá voces en inglés", vs.length ? "ok" : "err");
-  $("voices").innerHTML = vs.map((v, i) => `<option value="${i}">${v.name} · ${v.lang}${v.localService ? " · offline" : ""}</option>`).join("");
-  $("voices")._list = vs;
-}
-if ("speechSynthesis" in window) {
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-} else {
-  set("nvoices", "No soportado", "err");
-}
-$("speak").onclick = () => {
-  const v = $("voices")._list?.[$("voices").value];
-  const u = new SpeechSynthesisUtterance("Hi Ivan! Ready to practice your English today?");
-  if (v) { u.voice = v; u.lang = v.lang; }
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
-};
-
-// ---------- 5. Micrófono ----------
-$("mic").onclick = async () => {
-  try {
-    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-    s.getTracks().forEach((t) => t.stop());
-    set("micstate", "Permitido ✓", "ok");
-  } catch (e) {
-    set("micstate", "Denegado: " + e.name, "err");
-  }
-};
-
-// ---------- 6. Whisper ----------
-let transformers, transcriber, recorder, chunks = [], recStart = 0;
-
-$("wload").onclick = async () => {
-  $("wload").disabled = true;
-  $("wprog").hidden = false;
-  const wlog = (t) => { $("wlog").textContent = t; };
-  try {
-    wlog("Cargando librería…");
-    transformers ??= await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
-    const choice = $("wdevice").value;
-    const device = choice.startsWith("webgpu") ? "webgpu" : "wasm";
-    const dtype = choice === "webgpu-fp16"
-      ? { encoder_model: "fp16", decoder_model_merged: "q4" }
-      : choice === "webgpu"
-        ? { encoder_model: "fp32", decoder_model_merged: "q4" }
-        : "q8";
-    const files = {};
-    const t0 = performance.now();
-    transcriber = await transformers.pipeline("automatic-speech-recognition", $("wmodel").value, {
-      device,
-      dtype,
-      progress_callback: (p) => {
-        if (p.status === "progress" && p.file) {
-          files[p.file] = p.progress || 0;
-          const vals = Object.values(files);
-          $("wprog").value = vals.reduce((a, b) => a + b, 0) / vals.length;
-          wlog(`Descargando ${p.file}… ${Math.round(p.progress || 0)}%`);
-        }
-      },
-    });
-    // Calentamiento: la primera inferencia compila los shaders
-    wlog("Calentando el modelo…");
-    await transcriber(new Float32Array(16000));
-    $("wprog").value = 100;
-    wlog(`Whisper listo en ${((performance.now() - t0) / 1000).toFixed(1)} s (${choice}). Para probar otra variante, recargá la página.`);
-    $("wrec").disabled = false;
-  } catch (e) {
-    wlog("Error: " + (e?.message || e) + "\n\nSi falló en GPU, probá con CPU (WASM).");
-    $("wload").disabled = false;
-  }
-};
-
-$("wrec").onclick = async () => {
-  if (recorder?.state === "recording") { recorder.stop(); return; }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-    });
-    chunks = [];
-    recorder = new MediaRecorder(stream);
-    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    recorder.onstop = async () => {
-      stream.getTracks().forEach((t) => t.stop());
-      $("wrec").textContent = "⏳ Transcribiendo…";
-      $("wrec").disabled = true;
-      try {
-        const buf = await new Blob(chunks).arrayBuffer();
-        const ctx = new AudioContext({ sampleRate: 16000 });
-        const audio = (await ctx.decodeAudioData(buf)).getChannelData(0);
-        ctx.close();
-        set("wdur", (audio.length / 16000).toFixed(1) + " s");
-        const t0 = performance.now();
-        const out = await transcriber(audio);
-        const secs = (performance.now() - t0) / 1000;
-        set("wtime", secs.toFixed(1) + " s", secs <= 2 ? "ok" : secs <= 4 ? "warn" : "err");
-        const text = (out?.text || "").trim();
-        $("wtext").hidden = false;
-        $("wtext").textContent = text || "(no se entendió nada)";
-        const acc = wordAccuracy($("wref").textContent, text);
-        set("wacc", Math.round(acc * 100) + "%", acc >= 0.9 ? "ok" : acc >= 0.75 ? "warn" : "err");
-      } catch (e) {
-        $("wtext").hidden = false;
-        $("wtext").textContent = "Error: " + (e?.message || e);
-      }
-      $("wrec").textContent = "🎙️ Grabar";
-      $("wrec").disabled = false;
-    };
-    recorder.start();
-    recStart = performance.now();
-    $("wrec").textContent = "⏹️ Detener";
-  } catch (e) {
-    set("wdur", "Micrófono: " + e.name, "err");
-  }
-};
-
-// Precisión = 1 - WER (distancia de edición por palabras)
-function wordAccuracy(ref, hyp) {
-  const w = (s) => s.toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(Boolean);
-  const R = w(ref), H = w(hyp);
-  const d = Array.from({ length: R.length + 1 }, (_, i) => [i, ...new Array(H.length).fill(0)]);
-  for (let j = 1; j <= H.length; j++) d[0][j] = j;
-  for (let i = 1; i <= R.length; i++)
-    for (let j = 1; j <= H.length; j++)
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (R[i - 1] === H[j - 1] ? 0 : 1));
-  return Math.max(0, 1 - d[R.length][H.length] / R.length);
-}
-
-checkCompat();
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
