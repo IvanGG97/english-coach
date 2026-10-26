@@ -81,6 +81,28 @@
   <div class="row"><span>Estado</span><span id="micstate">—</span></div>
 </div>
 
+<div class="card">
+  <h2>6. Voz a texto offline (Whisper)</h2>
+  <select id="wmodel">
+    <option value="onnx-community/whisper-base.en">Whisper base.en (~80 MB) — recomendado</option>
+    <option value="onnx-community/whisper-tiny.en">Whisper tiny.en (~40 MB) — más rápido, menos preciso</option>
+  </select>
+  <select id="wdevice">
+    <option value="webgpu">GPU (WebGPU)</option>
+    <option value="wasm">CPU (WASM)</option>
+  </select>
+  <button id="wload">Descargar y cargar Whisper</button>
+  <progress id="wprog" max="100" value="0" hidden></progress>
+  <div id="wlog" style="font-size:13px;color:var(--mut);white-space:pre-wrap"></div>
+  <div style="margin-top:10px;font-size:14px">Leé en voz alta, a ritmo normal:</div>
+  <div class="msg a" id="wref">I have been working as a web developer for three years, mainly with Python and React.</div>
+  <button id="wrec" disabled>🎙️ Grabar</button>
+  <div class="row"><span>Duración del audio</span><span id="wdur">—</span></div>
+  <div class="row"><span>Tiempo de transcripción</span><span id="wtime">—</span></div>
+  <div class="row"><span>Precisión vs. frase</span><span id="wacc">—</span></div>
+  <div class="msg u" id="wtext" hidden></div>
+</div>
+
 <script type="module">
 const $ = (id) => document.getElementById(id);
 const log = (t) => { $("log").textContent = t; };
@@ -346,6 +368,101 @@ $("mic").onclick = async () => {
     set("micstate", "Denegado: " + e.name, "err");
   }
 };
+
+// ---------- 6. Whisper ----------
+let transformers, transcriber, recorder, chunks = [], recStart = 0;
+
+$("wload").onclick = async () => {
+  $("wload").disabled = true;
+  $("wprog").hidden = false;
+  const wlog = (t) => { $("wlog").textContent = t; };
+  try {
+    wlog("Cargando librería…");
+    transformers ??= await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
+    const device = $("wdevice").value;
+    const dtype = device === "webgpu"
+      ? { encoder_model: "fp32", decoder_model_merged: "q4" }
+      : "q8";
+    const files = {};
+    const t0 = performance.now();
+    transcriber = await transformers.pipeline("automatic-speech-recognition", $("wmodel").value, {
+      device,
+      dtype,
+      progress_callback: (p) => {
+        if (p.status === "progress" && p.file) {
+          files[p.file] = p.progress || 0;
+          const vals = Object.values(files);
+          $("wprog").value = vals.reduce((a, b) => a + b, 0) / vals.length;
+          wlog(`Descargando ${p.file}… ${Math.round(p.progress || 0)}%`);
+        }
+      },
+    });
+    // Calentamiento: la primera inferencia compila los shaders
+    wlog("Calentando el modelo…");
+    await transcriber(new Float32Array(16000));
+    $("wprog").value = 100;
+    wlog(`Whisper listo en ${((performance.now() - t0) / 1000).toFixed(1)} s (${device}).`);
+    $("wrec").disabled = false;
+  } catch (e) {
+    wlog("Error: " + (e?.message || e) + "\n\nSi falló en GPU, probá con CPU (WASM).");
+    $("wload").disabled = false;
+  }
+};
+
+$("wrec").onclick = async () => {
+  if (recorder?.state === "recording") { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+    chunks = [];
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      $("wrec").textContent = "⏳ Transcribiendo…";
+      $("wrec").disabled = true;
+      try {
+        const buf = await new Blob(chunks).arrayBuffer();
+        const ctx = new AudioContext({ sampleRate: 16000 });
+        const audio = (await ctx.decodeAudioData(buf)).getChannelData(0);
+        ctx.close();
+        set("wdur", (audio.length / 16000).toFixed(1) + " s");
+        const t0 = performance.now();
+        const out = await transcriber(audio);
+        const secs = (performance.now() - t0) / 1000;
+        set("wtime", secs.toFixed(1) + " s", secs <= 2 ? "ok" : secs <= 4 ? "warn" : "err");
+        const text = (out?.text || "").trim();
+        $("wtext").hidden = false;
+        $("wtext").textContent = text || "(no se entendió nada)";
+        const acc = wordAccuracy($("wref").textContent, text);
+        set("wacc", Math.round(acc * 100) + "%", acc >= 0.9 ? "ok" : acc >= 0.75 ? "warn" : "err");
+      } catch (e) {
+        $("wtext").hidden = false;
+        $("wtext").textContent = "Error: " + (e?.message || e);
+      }
+      $("wrec").textContent = "🎙️ Grabar";
+      $("wrec").disabled = false;
+    };
+    recorder.start();
+    recStart = performance.now();
+    $("wrec").textContent = "⏹️ Detener";
+  } catch (e) {
+    set("wdur", "Micrófono: " + e.name, "err");
+  }
+};
+
+// Precisión = 1 - WER (distancia de edición por palabras)
+function wordAccuracy(ref, hyp) {
+  const w = (s) => s.toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(Boolean);
+  const R = w(ref), H = w(hyp);
+  const d = Array.from({ length: R.length + 1 }, (_, i) => [i, ...new Array(H.length).fill(0)]);
+  for (let j = 1; j <= H.length; j++) d[0][j] = j;
+  for (let i = 1; i <= R.length; i++)
+    for (let j = 1; j <= H.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (R[i - 1] === H[j - 1] ? 0 : 1));
+  return Math.max(0, 1 - d[R.length][H.length] / R.length);
+}
 
 checkCompat();
 </script>
