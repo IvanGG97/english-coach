@@ -52,9 +52,20 @@
   <h2>3. Velocidad y mini chat</h2>
   <div class="row"><span>Tokens/seg (respuesta)</span><span id="tps">—</span></div>
   <div id="chat"></div>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:14px;color:var(--mut)">
+    <input type="checkbox" id="twostep" checked style="width:auto;margin:0"> Modo 2 pasos (primero corrige, después responde)
+  </label>
   <input id="inp" placeholder="Write something in English…" disabled>
   <button id="send" disabled>Enviar</button>
   <button id="bench" disabled>Benchmark rápido</button>
+</div>
+
+<div class="card">
+  <h2>3b. Corrector dedicado</h2>
+  <div style="font-size:13px;color:var(--mut)">5 frases: 3 con errores y 2 correctas (para ver si inventa errores).</div>
+  <button id="ctest" disabled>Probar corrector (5 frases)</button>
+  <div class="row"><span>Aciertos</span><span id="cscore">—</span></div>
+  <div id="cres"></div>
 </div>
 
 <div class="card">
@@ -75,7 +86,25 @@ const $ = (id) => document.getElementById(id);
 const log = (t) => { $("log").textContent = t; };
 const set = (id, txt, cls) => { $(id).textContent = txt; $(id).className = cls || ""; };
 
-const SYSTEM = "You are a friendly English conversation partner. Keep replies short (1-3 sentences). After replying, if the user made a grammar mistake, add one line starting with 'Tip:' with the correction.";
+const SYSTEM = "You are a friendly English conversation partner. Keep replies short (1-3 sentences) and end with a simple question to keep the conversation going. Do not correct the user's grammar.";
+
+const CORRECTOR = [
+  { role: "system", content: "You are an English grammar corrector. Rewrite the user's sentence with correct grammar. Keep the same meaning and the same words whenever possible. Output ONLY the corrected sentence, nothing else. If the sentence is already correct, output it unchanged." },
+  { role: "user", content: "She don't like coffee." },
+  { role: "assistant", content: "She doesn't like coffee." },
+  { role: "user", content: "I have been working here for two years." },
+  { role: "assistant", content: "I have been working here for two years." },
+  { role: "user", content: "Last week we deploy the app and it work fine." },
+  { role: "assistant", content: "Last week we deployed the app and it worked fine." },
+];
+
+const TESTS = [
+  { s: "Yesterday I go to the office and my boss say me that the meeting are cancelled.", bad: true },
+  { s: "I am working as a developer since 2022.", bad: true },
+  { s: "Can you explain me how this function works?", bad: true },
+  { s: "I usually drink coffee before I start working.", bad: false },
+  { s: "We fixed the bug last night.", bad: false },
+];
 
 let webllm, engine, history = [{ role: "system", content: SYSTEM }];
 let hasF16 = false;
@@ -135,7 +164,7 @@ $("load").onclick = async () => {
       appConfig: { ...webllm.prebuiltAppConfig, useIndexedDBCache: useIDB },
     });
     log(`Modelo listo en ${((performance.now() - t0) / 1000).toFixed(1)} s. La próxima vez carga desde caché, sin internet.`);
-    ["inp", "send", "bench"].forEach((id) => ($(id).disabled = false));
+    ["inp", "send", "bench", "ctest"].forEach((id) => ($(id).disabled = false));
   } catch (e) {
     log("Error: " + (e?.message || e) + "\n\nTocá el botón de nuevo: las partes ya descargadas quedan guardadas y sigue desde donde cortó.");
     $("load").disabled = false;
@@ -174,12 +203,74 @@ async function ask(text, show = true) {
   return out;
 }
 
+// ---------- Corrector ----------
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9' ]/g, " ").replace(/\s+/g, " ").trim();
+
+function cleanOutput(raw) {
+  let s = (raw || "").trim().split("\n").find((l) => l.trim()) || "";
+  s = s.replace(/^(corrected( sentence)?|correction|output)\s*:\s*/i, "").trim();
+  s = s.replace(/^["“'`]+|["”'`]+$/g, "").trim();
+  return s;
+}
+
+async function correct(sentence) {
+  const t0 = performance.now();
+  const r = await engine.chat.completions.create({
+    messages: [...CORRECTOR, { role: "user", content: sentence }],
+    temperature: 0,
+    max_tokens: 80,
+  });
+  const fixed = cleanOutput(r.choices[0]?.message?.content) || sentence;
+  return { fixed, changed: norm(fixed) !== norm(sentence), secs: (performance.now() - t0) / 1000 };
+}
+
+// Diff por palabras (LCS): tachado = sacar, verde = agregar
+function diffHTML(a, b) {
+  const esc = (w) => w.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const A = a.split(/\s+/), B = b.split(/\s+/);
+  const key = (w) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
+  const dp = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
+  for (let i = A.length - 1; i >= 0; i--)
+    for (let j = B.length - 1; j >= 0; j--)
+      dp[i][j] = key(A[i]) === key(B[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < A.length && j < B.length) {
+    if (key(A[i]) === key(B[j])) { out.push(esc(B[j])); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push(`<s class="err">${esc(A[i++])}</s>`);
+    else out.push(`<b class="ok">${esc(B[j++])}</b>`);
+  }
+  while (i < A.length) out.push(`<s class="err">${esc(A[i++])}</s>`);
+  while (j < B.length) out.push(`<b class="ok">${esc(B[j++])}</b>`);
+  return out.join(" ");
+}
+
+function addCorrection(original, fixed) {
+  const d = document.createElement("div");
+  d.className = "msg a";
+  d.style.borderLeft = "3px solid var(--warn)";
+  d.innerHTML = "✏️ " + diffHTML(original, fixed);
+  $("chat").appendChild(d);
+  $("chat").scrollTop = 1e9;
+}
+
+async function turn(text) {
+  if ($("twostep").checked) {
+    addMsg("u", text);
+    const c = await correct(text);
+    if (c.changed) addCorrection(text, c.fixed);
+    await ask(text, false);
+  } else {
+    await ask(text);
+  }
+}
+
 $("send").onclick = async () => {
   const t = $("inp").value.trim();
   if (!t) return;
   $("inp").value = "";
   $("send").disabled = true;
-  try { await ask(t); } catch (e) { addMsg("a", "Error: " + e.message); }
+  try { await turn(t); } catch (e) { addMsg("a", "Error: " + e.message); }
   $("send").disabled = false;
 };
 $("inp").addEventListener("keydown", (e) => { if (e.key === "Enter") $("send").click(); });
@@ -188,11 +279,40 @@ $("bench").onclick = async () => {
   $("bench").disabled = true;
   history = [{ role: "system", content: SYSTEM }];
   $("chat").innerHTML = "";
+  const t0 = performance.now();
   try {
-    await ask("Yesterday I go to the office and my boss say me that the meeting are cancelled.");
-    try { log((await engine.runtimeStatsText()) + "\n(La frase tenía errores a propósito: fijate si el Tip los corrigió bien.)"); } catch {}
+    await turn(TESTS[0].s);
+    const total = ((performance.now() - t0) / 1000).toFixed(1);
+    try { log((await engine.runtimeStatsText()) + `\nTiempo total del turno: ${total} s`); } catch {}
   } catch (e) { addMsg("a", "Error: " + e.message); }
   $("bench").disabled = false;
+};
+
+$("ctest").onclick = async () => {
+  $("ctest").disabled = true;
+  $("cres").innerHTML = "";
+  let hits = 0, secs = 0;
+  for (const [n, t] of TESTS.entries()) {
+    const row = document.createElement("div");
+    row.className = "msg a";
+    row.textContent = `${n + 1}. Corrigiendo…`;
+    $("cres").appendChild(row);
+    try {
+      const c = await correct(t.s);
+      secs += c.secs;
+      const ok = c.changed === t.bad;
+      if (ok) hits++;
+      const verdict = t.bad
+        ? (c.changed ? "✓ detectó el error" : "✗ no vio el error")
+        : (c.changed ? "✗ inventó un error" : "✓ la dejó igual");
+      row.innerHTML = `<div class="${ok ? "ok" : "err"}" style="font-size:13px">${n + 1}. ${verdict} · ${c.secs.toFixed(1)} s</div>` +
+        (c.changed ? diffHTML(t.s, c.fixed) : t.s.replace(/[&<>]/g, ""));
+    } catch (e) {
+      row.textContent = `${n + 1}. Error: ${e.message}`;
+    }
+  }
+  set("cscore", `${hits}/5 · promedio ${(secs / TESTS.length).toFixed(1)} s`, hits >= 4 ? "ok" : hits >= 3 ? "warn" : "err");
+  $("ctest").disabled = false;
 };
 
 // ---------- 4. TTS ----------
