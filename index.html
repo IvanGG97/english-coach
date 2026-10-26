@@ -88,7 +88,8 @@
     <option value="onnx-community/whisper-tiny.en">Whisper tiny.en (~40 MB) — más rápido, menos preciso</option>
   </select>
   <select id="wdevice">
-    <option value="webgpu">GPU (WebGPU)</option>
+    <option value="webgpu-fp16">GPU fp16 (más rápido)</option>
+    <option value="webgpu">GPU fp32 (más preciso)</option>
     <option value="wasm">CPU (WASM)</option>
   </select>
   <button id="wload">Descargar y cargar Whisper</button>
@@ -379,10 +380,13 @@ $("wload").onclick = async () => {
   try {
     wlog("Cargando librería…");
     transformers ??= await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
-    const device = $("wdevice").value;
-    const dtype = device === "webgpu"
-      ? { encoder_model: "fp32", decoder_model_merged: "q4" }
-      : "q8";
+    const choice = $("wdevice").value;
+    const device = choice.startsWith("webgpu") ? "webgpu" : "wasm";
+    const dtype = choice === "webgpu-fp16"
+      ? { encoder_model: "fp16", decoder_model_merged: "q4" }
+      : choice === "webgpu"
+        ? { encoder_model: "fp32", decoder_model_merged: "q4" }
+        : "q8";
     const files = {};
     const t0 = performance.now();
     transcriber = await transformers.pipeline("automatic-speech-recognition", $("wmodel").value, {
@@ -401,7 +405,7 @@ $("wload").onclick = async () => {
     wlog("Calentando el modelo…");
     await transcriber(new Float32Array(16000));
     $("wprog").value = 100;
-    wlog(`Whisper listo en ${((performance.now() - t0) / 1000).toFixed(1)} s (${device}).`);
+    wlog(`Whisper listo en ${((performance.now() - t0) / 1000).toFixed(1)} s (${choice}). Para probar otra variante, recargá la página.`);
     $("wrec").disabled = false;
   } catch (e) {
     wlog("Error: " + (e?.message || e) + "\n\nSi falló en GPU, probá con CPU (WASM).");
